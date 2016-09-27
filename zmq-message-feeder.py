@@ -41,7 +41,8 @@ it with a set of test messages.')
 
 parser.add_argument('-b', '--bind', action='store', default='tcp://127.0.0.1:12345', help='bind address (default: tcp://127.0.0.1:12345)')
 parser.add_argument('-g', '--send-gzip', dest='send_gzip', action='store_true')
-parser.add_argument('-d', '--delay', action='store', default='0', help='delay (in seconds) before sending')
+parser.add_argument('-d', '--delay', action='store', default='1', help='delay (in seconds) before sending (default: 1s)')
+parser.add_argument('-e', '--envelope', action='store', default='', help='envelope')
 
 parser.add_argument('FILE', nargs='+',
     action='store', help='input file (text or .gz), each new line is a message')
@@ -58,6 +59,8 @@ publisher.bind(args.bind)
 # Read and prepare messages:
 msg_count = 0
 messages = []
+
+print "Binding to %s" % args.bind
 
 print "Preparing..."
 
@@ -92,7 +95,7 @@ start = time.time()
 print "Starting to send %s messages" % msg_count
 
 for message in messages:
-    publisher.send_multipart(['test', message])
+    publisher.send_multipart([args.envelope, message])
 
 # Statistics:
 print "Sent %s messages in %.2f sec." % (msg_count, time.time() - start)
