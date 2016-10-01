@@ -43,9 +43,10 @@ parser.add_argument('-b', '--bind', action='store', default='tcp://127.0.0.1:123
 parser.add_argument('-g', '--send-gzip', dest='send_gzip', action='store_true')
 parser.add_argument('-d', '--delay', action='store', default='1', help='delay (in seconds) before sending (default: 1s)')
 parser.add_argument('-e', '--envelope', action='store', default='', help='envelope')
+parser.add_argument('-m', '--message-mode', dest='message_mode', action='store_true', help='enable message mode: treat each file as a full message. Default: treat each line as a new message')
 
 parser.add_argument('FILE', nargs='+',
-    action='store', help='input file (text or .gz), each new line is a message')
+    action='store', help='input file (text or .gz)')
 
 args = parser.parse_args()
 
@@ -64,6 +65,21 @@ print "Binding to %s" % args.bind
 
 print "Preparing..."
 
+def prepare_message(contents):
+    global args
+    global messages
+
+    if (args.send_gzip == True):
+        out = StringIO()
+        with gzip.GzipFile(fileobj=out, mode="w") as f:
+            f.write(contents)
+        message = out.getvalue()
+    else:
+        message = contents
+
+    messages.append(message)
+
+
 for filename in args.FILE:
     # Open a plain text or GZIP file:
     if filename.endswith('.gz'):
@@ -71,19 +87,15 @@ for filename in args.FILE:
     else:
         inputfile = open(filename, 'r')
 
-    # Read all lines (each line is a new message)
     with inputfile as f:
-        for line in f:
-            if (args.send_gzip == True):
-                out = StringIO()
-                with gzip.GzipFile(fileobj=out, mode="w") as f:
-                    f.write(line)
-                message = out.getvalue()
-            else:
-                message = line
-
-            messages.append(message)
-            msg_count = msg_count + 1
+        if args.message_mode:
+            # Read all lines (combined they are a new message)
+            message = f.read()
+            prepare_message(message)
+        else:
+            # Read all lines (each line is a new message)
+            for line in f:
+                prepare_message(line)
 
 # Optional start delay
 if args.delay > 0:
@@ -92,6 +104,7 @@ if args.delay > 0:
 
 # Send messages
 start = time.time()
+msg_count = len(messages)
 print "Starting to send %s messages" % msg_count
 
 for message in messages:
