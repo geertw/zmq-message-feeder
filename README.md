@@ -20,7 +20,7 @@ Features:
 
 ### Examples
 
-Broadcast a set of messages:
+Broadcast a set of messages (one message per line):
 
 ```
 ./zmq-message-feeder.py messages.txt
@@ -29,7 +29,7 @@ Broadcast a set of messages:
 Use multiple gzip'ed files as input:
 
 ```
-./zmq-message-feeder.py messages01.gz messages02.gz messages03.gz
+./zmq-message-feeder.py -m messages01.gz messages02.gz messages03.gz
 ```
 
 Send messages as gzip:
