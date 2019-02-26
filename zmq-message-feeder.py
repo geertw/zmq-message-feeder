@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 ZeroMQ Message Feeder
@@ -29,7 +29,7 @@ import zmq
 import time
 import gzip
 import argparse
-from cStringIO import StringIO
+from io import BytesIO
 
 # Initialise argparse
 parser = argparse.ArgumentParser(
@@ -43,6 +43,7 @@ parser.add_argument('-b', '--bind', action='store', default='tcp://127.0.0.1:123
 parser.add_argument('-g', '--send-gzip', dest='send_gzip', action='store_true')
 parser.add_argument('-d', '--delay', action='store', default='1', help='delay (in seconds) before sending (default: 1s)')
 parser.add_argument('-e', '--envelope', action='store', default='', help='envelope')
+parser.add_argument('-a', '--auto-envelope', action='store_true', dest='auto_envelope', default='', help='automatic envelope')
 parser.add_argument('-m', '--message-mode', dest='message_mode', action='store_true', help='enable message mode: treat each file as a full message. Default: treat each line as a new message')
 
 parser.add_argument('FILE', nargs='+',
@@ -59,24 +60,29 @@ publisher.bind(args.bind)
 
 # Read and prepare messages:
 msg_count = 0
+envelopes = []
 messages = []
 
-print "Binding to %s" % args.bind
+print("Binding to %s" % args.bind)
 
-print "Preparing..."
+print("Preparing...")
 
-def prepare_message(contents):
+def prepare_message(envelope, contents):
     global args
+    global envelopes
     global messages
 
+    contents = bytes(contents, 'UTF-8')
+
     if (args.send_gzip == True):
-        out = StringIO()
+        out = BytesIO()
         with gzip.GzipFile(fileobj=out, mode="w") as f:
             f.write(contents)
         message = out.getvalue()
     else:
         message = contents
 
+    envelopes.append(envelope.encode())
     messages.append(message)
 
 
@@ -85,7 +91,7 @@ for filename in args.FILE:
     if filename.endswith('.gz'):
         inputfile = gzip.open(filename, 'rb')
     else:
-        inputfile = open(filename, 'r')
+        inputfile = open(filename, 'rb')
 
     with inputfile as f:
         if args.message_mode:
@@ -95,20 +101,27 @@ for filename in args.FILE:
         else:
             # Read all lines (each line is a new message)
             for line in f:
-                prepare_message(line)
+                if args.auto_envelope:
+                    data = line.decode().split('] ', 1)
+                    envelope = data[0][1:]
+                    message = data[1]
+                    prepare_message(envelope, message.strip())
+                else:
+                    prepare_message(args.envelope.encode(), line)
 
 # Optional start delay
-if args.delay > 0:
-    print "Waiting %.2f sec." % float(args.delay)
+if int(args.delay) > 0:
+    print("Waiting %.2f sec." % float(args.delay))
     time.sleep(float(args.delay))
 
 # Send messages
 start = time.time()
 msg_count = len(messages)
-print "Starting to send %s messages" % msg_count
+print("Starting to send %s messages" % msg_count)
 
-for message in messages:
-    publisher.send_multipart([args.envelope, message])
+for (index, message) in enumerate(messages):
+    envelope = envelopes[index]
+    publisher.send_multipart([envelope, message])
 
 # Statistics:
-print "Sent %s messages in %.2f sec." % (msg_count, time.time() - start)
+print("Sent %s messages in %.2f sec." % (msg_count, time.time() - start))
